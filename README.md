@@ -1,5 +1,7 @@
 # 🏰 Age of Empires Human-Guided RL
 
+[![Tests](https://github.com/OWNER/AoE2DE/actions/workflows/tests.yml/badge.svg)](https://github.com/OWNER/AoE2DE/actions/workflows/tests.yml)
+
 Este repositório explora **Aprendizado por Reforço (Reinforcement Learning)** combinado com **Aprendizado por Demonstração (Imitation Learning / Inverse Reinforcement Learning)** aplicado ao jogo **Age of Empires II: Definitive Edition**.
 
 A ideia central é **observar a performance humana** em *replays* para:
