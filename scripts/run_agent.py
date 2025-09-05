@@ -11,7 +11,7 @@ from typing import List
 
 import torch
 
-from train_agent import SimpleTransformer
+from src.agent.model import SimpleTransformer
 from src.env import AoE2DEEnvironment
 
 

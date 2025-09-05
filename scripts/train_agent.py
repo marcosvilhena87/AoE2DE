@@ -15,10 +15,12 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, List, Tuple
 
 import torch
-from torch import nn, optim
+from torch import optim
 from torch.nn import functional as F
 from torch.utils.data import DataLoader, Dataset
 from torch.utils.tensorboard import SummaryWriter
+
+from src.agent.model import SimpleTransformer
 
 
 def load_config(path: Path) -> Dict[str, Any]:
@@ -60,24 +62,6 @@ class EpisodeDataset(Dataset[Tuple[torch.Tensor, torch.Tensor]]):
 
     def __getitem__(self, idx: int) -> Tuple[torch.Tensor, torch.Tensor]:
         return self.samples[idx]
-
-
-class SimpleTransformer(nn.Module):
-    """Minimal Transformer-based policy network."""
-
-    def __init__(self, state_dim: int, num_actions: int, d_model: int = 64,
-                 nhead: int = 4, num_layers: int = 2) -> None:
-        super().__init__()
-        self.input_proj = nn.Linear(state_dim, d_model)
-        layer = nn.TransformerEncoderLayer(d_model=d_model, nhead=nhead,
-                                           batch_first=True)
-        self.encoder = nn.TransformerEncoder(layer, num_layers=num_layers)
-        self.policy = nn.Linear(d_model, num_actions)
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:  # pragma: no cover - simple passthrough
-        x = self.input_proj(x)
-        x = self.encoder(x)
-        return self.policy(x[:, -1])
 
 
 def train_agent(config_path: str | Path, output_dir: str | Path, epochs: int,
