@@ -1,140 +1,107 @@
-# 🏰 Age of Empires Human-Guided RL
+# Agente Substituto para Age of Empires II: DE (Campanhas)
 
-Este repositório explora **Aprendizado por Reforço (Reinforcement Learning)** combinado com **Aprendizado por Demonstração (Imitation Learning / Inverse Reinforcement Learning)** aplicado ao jogo **Age of Empires II: Definitive Edition**.
-
-A ideia central é **observar a performance humana** em *replays* para:
-- Extrair *trajectories* (estado → ação macro).
-- Treinar uma política inicial por **Imitação** (Behavioral Cloning / GAIL).
-- Refinar essa política com **Reinforcement Learning** em ambiente controlado ou diretamente no AoE2.
+Este projeto implementa um **agente substituto** capaz de jogar missões de campanha do *Age of Empires II: Definitive Edition* imitando o estilo do jogador humano.  
+O agente aprende observando múltiplas partidas humanas e toma **decisões de alto nível** (macro), como build orders, escolhas de tecnologia, movimentação de tropas e execução de objetivos de cenário.
 
 ---
 
-## 🎯 Objetivos
-
-- Aprender *build orders* e transições a partir de replays humanos.
-- Criar agentes capazes de executar **estratégias plausíveis**, em vez de micro perfeito.
-- Evoluir de **demonstrações** para **self-play com recompensas densas**.
-
----
-
-## 🛠️ Stack Técnica
-
-- **Parsing de Replays**: [aoc-mgz](https://github.com/happyleavesaoc/aoc-mgz) (suporta `.aoe2record`).
-- **RL / IL**: [Stable-Baselines3](https://github.com/DLR-RM/stable-baselines3), [imitation](https://github.com/HumanCompatibleAI/imitation).
-- **Ambientes**:
-  - Prototipagem: [µRTS](https://github.com/vwxyzjn/gym-microrts) (RTS minimalista com interface Gym).
-  - Execução real: automação via OCR/hotkeys ou [openage](https://github.com/SFTtech/openage).
-- **Visualização**: [CaptureAge](https://www.captureage.com/) para depuração.
+## ✨ Funcionalidades
+- **Imitação de estilo humano:** treina a partir dos replays ou inputs do jogador.  
+- **Ações em nível macro:** treinar vilarejos, subir de idade, construir edifícios, mover exércitos, capturar relíquias etc.  
+- **Execução automática:** transforma ações previstas em comandos no jogo por meio de rotinas de hotkeys e scripts.  
+- **Generalização:** capaz de completar diferentes missões de campanha, mesmo em estados não vistos durante o treino.  
 
 ---
 
-## 📂 Estrutura
-
+## 📂 Estrutura do Repositório
 ```
-├── data/                # Replays e trajectories processadas
-├── notebooks/           # Análises e protótipos
+├── data/               # Partidas gravadas e trajetórias em formato YAML/JSON
+├── assets/             # Templates de HUD, ícones e OCR
 ├── src/
-│   ├── parsing/         # Conversores .aoe2record -> dataset
-│   ├── macros/          # Definição de ações em nível macro
-│   ├── policies/        # Modelos (BC, GAIL, PPO, SAC)
-│   ├── envs/            # Wrappers (µRTS, AoE2 OCR, openage)
-│   └── rewards/         # Funções de recompensa densas
+│   ├── agent/          # Modelo de política (Transformer, imitation learning)
+│   ├── env/            # Conector com o jogo (leitura de estado e execução de ações)
+│   └── utils/          # Funções auxiliares (parser, logging, métricas)
+├── notebooks/          # Experimentos e análises
+├── scripts/            # Automação de treino e execução
 └── README.md
 ```
 
 ---
 
-## 🚀 Pipeline
+## ⚙️ Como Funciona
+1. **Coleta de Dados:**  
+   - Extração de replays do AoE2DE.  
+   - Log de recursos e ações via OCR e hotkeys.  
+   - Conversão de micro-ações em macros de alto nível.  
 
-1. **Coleta** de replays humanos (`.aoe2record`).
-2. **Parsing** → estados agregados (recursos, upgrades, army size, timings).
-3. **Mapeamento de Ações Macro** → `Train(Villager)`, `AgeUp(Feudal)`, `Build(ArcheryRange)`, etc.
-4. **Imitação**:
-   - *Behavioral Cloning* (supervisionado).
-   - *GAIL* para maior robustez.
-5. **Reinforcement Learning**:
-   - *Offline RL*: CQL/IQL sobre os replays.
-   - *Online RL*: PPO/SAC com recompensas densas (eco, army, timings).
-6. **Validação**:
-   - Timings (Feudal, Castle, Imperial).
-   - Uptime de TCs e Idle Villagers.
-   - Execução de *build orders* plausíveis.
+2. **Treinamento do Agente:**  
+   - **Behavioral Cloning (BC):** modelo imita diretamente as decisões do jogador.  
+   - **DAgger:** corrige estados fora da distribuição.  
+   - **Offline RL (opcional):** melhora robustez adicionando recompensas de objetivos (ex.: relíquias capturadas).  
 
----
-
-## 📊 Exemplo de Feature (estado)
-
-```json
-{
-  "time": 410,
-  "food": 350,
-  "wood": 180,
-  "gold": 0,
-  "villagers": 19,
-  "idle_tc": 0,
-  "age": "Dark",
-  "military": {"maa": 2, "archers": 0},
-  "upgrades": ["loom"],
-  "enemy_pressure": 0.2
-}
-```
+3. **Execução:**  
+   - O agente recebe estado resumido (recursos, população, objetivos).  
+   - Gera uma ação macro (ex.: “treinar 5 arqueiros”).  
+   - O executor envia comandos ao jogo usando hotkeys/script.  
 
 ---
 
-## 📦 Instalação
+## 🚀 Instalação
+Pré-requisitos:
+- Python 3.9+  
+- PyTorch  
+- OpenCV (OCR)  
+- Tesseract OCR  
+- AutoHotkey (Windows) ou alternativa para emissão de hotkeys  
 
-Clone o repositório e instale as dependências listadas em `requirements.txt`:
-
+Instalação:
 ```bash
-git clone https://github.com/SEU_USUARIO/aoe2-human-rl.git
-cd aoe2-human-rl
+cd aoe2-agent-substituto
 pip install -r requirements.txt
 ```
 
-Requisitos principais:
-- Python 3.9+
-- `stable-baselines3`
-- `imitation`
-- `torch`
-- `aoc-mgz`
-- `gym-microrts` (opcional)
-
 ---
 
-## 🧠 Treino com Behavioral Cloning
-
-Para treinar uma política BC a partir das trajetórias processadas:
-
+## ▶️ Uso
+1. Colete replays e salve em `data/`.  
+2. Pré-processe dados:
 ```bash
-python -m src.policies.bc_train --data-dir data/processed
+python scripts/preprocess_replays.py --input data/replays --output data/episodes
+```
+3. Treine o agente:
+```bash
+python scripts/train_agent.py --config configs/bc.yaml
+```
+4. Execute em campanha:
+```bash
+python scripts/run_agent.py --mission "William Wallace 4"
 ```
 
-O modelo final será salvo em `data/models/bc_policy.pt` por padrão.
+---
+
+## 📊 Avaliação
+- **Métricas:**  
+  - % de missões concluídas.  
+  - Tempo médio até o objetivo.  
+  - Precisão de imitação (ações previstas vs humanas).  
+- **Logs:** salvos em `logs/` com TensorBoard para visualização.  
 
 ---
 
-## 📅 Roadmap
-
-- [ ] Parsing inicial de replays → CSV/JSON de trajectories.  
-- [ ] Definição de espaço de ação macro.  
-- [ ] Treino com Behavioral Cloning.  
-- [ ] GAIL para robustez.  
-- [ ] Recompensas densas macro-aware.  
-- [ ] Integração com openage.  
-- [ ] Self-play híbrido IL + RL.  
-
----
-
-## 📚 Referências
-
-- Silver et al., *Mastering the game of Go with deep neural networks and tree search*, Nature (2016).
-- Ho & Ermon, *Generative Adversarial Imitation Learning* (2016).
-- Gym-MicroRTS: https://github.com/vwxyzjn/gym-microrts
-- Projeto openage: https://github.com/SFTtech/openage
-- Biblioteca aoc-mgz: https://github.com/happyleavesaoc/aoc-mgz
+## 📌 Roadmap
+- [x] Coleta de dados de partidas próprias  
+- [x] Definição de catálogo de ações macro  
+- [ ] Treinamento inicial por Behavioral Cloning  
+- [ ] Integração com AutoHotkey  
+- [ ] DAgger + Offline RL  
+- [ ] Suporte a múltiplas campanhas  
 
 ---
 
 ## 🤝 Contribuições
+Contribuições são bem-vindas! Abra uma **issue** para discutir ideias ou envie um **pull request**.
 
-Pull requests e sugestões são bem-vindos! Se quiser discutir ideias, abra uma issue.
+---
+
+## 📜 Licença
+Este projeto está sob a licença MIT – veja o arquivo [LICENSE](LICENSE) para mais detalhes.
