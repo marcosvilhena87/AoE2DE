@@ -9,7 +9,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Iterable
 
-from src.utils.replay_parser import ReplayParser
+from src.utils.replay_parser import ReplayParser, UnsupportedReplayFormat
 
 
 logger = logging.getLogger(__name__)
@@ -31,6 +31,8 @@ def _process_replay(replay_path: Path, output_dir: Path) -> None:
         with out_file.open("w", encoding="utf-8") as f:
             json.dump(metadata, f, indent=2)
         logger.info("Processed %s", replay_path.name)
+    except (UnsupportedReplayFormat, ValueError) as exc:
+        logger.warning("Skipping %s: %s", replay_path.name, exc)
     except Exception as exc:  # pragma: no cover - logging path
         logger.error("Failed to process %s: %s", replay_path, exc, exc_info=True)
 
