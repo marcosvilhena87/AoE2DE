@@ -101,6 +101,18 @@ Requisitos principais:
 
 ---
 
+## 🧠 Treino com Behavioral Cloning
+
+Para treinar uma política BC a partir das trajetórias processadas:
+
+```bash
+python -m src.policies.bc_train --data-dir data/processed
+```
+
+O modelo final será salvo em `data/models/bc_policy.pt` por padrão.
+
+---
+
 ## 📅 Roadmap
 
 - [ ] Parsing inicial de replays → CSV/JSON de trajectories.  
