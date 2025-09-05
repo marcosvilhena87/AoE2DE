@@ -122,9 +122,13 @@ class ReplayParser:
                     skipped += 1
                     continue
                 crc = entry.get("crc")
-                data = entry.get("string", {}).get("value", b"")
                 if crc in (None, 0):
                     continue
+                string_entry = entry.get("string")
+                if isinstance(string_entry, dict):
+                    data = string_entry.get("value", b"") or b""
+                else:
+                    data = b""
                 if zlib.crc32(data) & 0xFFFFFFFF != crc:
                     raise ValueError("Checksum mismatch in string block")
 
