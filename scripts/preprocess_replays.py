@@ -26,11 +26,10 @@ def _iter_replay_files(directory: Path) -> Iterable[Path]:
 def _process_replay(replay_path: Path, output_dir: Path) -> None:
     parser = ReplayParser()
     try:
-        events = parser.parse(replay_path)
-        episode = {"events": events}
+        metadata = parser.parse(replay_path)
         out_file = output_dir / f"{replay_path.stem}.json"
         with out_file.open("w", encoding="utf-8") as f:
-            json.dump(episode, f, indent=2)
+            json.dump(metadata, f, indent=2)
         logger.info("Processed %s", replay_path.name)
     except Exception as exc:  # pragma: no cover - logging path
         logger.error("Failed to process %s: %s", replay_path, exc, exc_info=True)

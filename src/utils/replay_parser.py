@@ -1,41 +1,53 @@
+"""Replay parser using the :mod:`mgz` library.
+
+This module replaces the previous toy format implementation with a thin
+wrapper around the `mgz` package which understands the real
+``.aoe2record`` specification.  Only high level metadata is exposed at the
+moment, but the parser can be extended to yield additional information if
+needed.
+
+The parser reads the replay header and returns a dictionary containing
+game version, map information and player details.  During parsing the
+checksum fields present in the header's string blocks are validated to
+ensure file integrity.
+"""
+
 from __future__ import annotations
 
 import gzip
-import struct
+import zlib
 from pathlib import Path
-from typing import Any, BinaryIO, List
+from typing import Any, BinaryIO, Dict, List
+
+import mgz
+from construct import ConstructError
 
 
 class UnsupportedReplayFormat(Exception):
-    """Raised when a replay file does not match the expected toy format."""
+    """Raised when a replay file does not conform to ``.aoe2record``."""
 
 
 class ReplayParser:
-    """Parse AoE2DE replay files into structured events.
+    """Parse AoE2DE replay files into metadata dictionaries."""
 
-    The parser understands a very small subset of the replay format used for
-    testing purposes. Each replay file starts with a 32-bit little-endian
-    integer indicating the number of events. Every event then stores:
-
-    * timestamp -- 32-bit little-endian integer of milliseconds
-    * player name length (1 byte) followed by UTF-8 bytes
-    * event name length (1 byte) followed by UTF-8 bytes
-
-    Files with the ``.mgz`` extension are assumed to be gzip compressed while
-    ``.aoe2record`` files are read as raw binary.
-    """
-
-    def parse(self, file_path: Path) -> list[dict[str, Any]]:
-        """Return a list of events extracted from ``file_path``.
+    # ------------------------------------------------------------------
+    def parse(self, file_path: Path) -> Dict[str, Any]:
+        """Return metadata extracted from ``file_path``.
 
         Parameters
         ----------
         file_path:
-            Path to a ``.aoe2record`` or ``.mgz`` file.
+            Path to a ``.aoe2record`` or ``.mgz`` replay file.
         """
 
         with self._open(file_path) as fh:
-            return self._parse_stream(fh)
+            try:
+                header = mgz.header.parse_stream(fh)
+            except ConstructError as exc:  # pragma: no cover - defensive
+                raise UnsupportedReplayFormat("File is not a valid aoe2record") from exc
+
+        self._validate_checksums(header)
+        return self._extract_metadata(header)
 
     # ------------------------------------------------------------------
     def _open(self, path: Path) -> BinaryIO:
@@ -44,74 +56,67 @@ class ReplayParser:
         return open(path, "rb")
 
     # ------------------------------------------------------------------
-    def _parse_stream(self, fh: BinaryIO) -> List[dict[str, Any]]:
-        # Read event count from header
-        data = fh.read(4)
-        if len(data) < 4:
-            raise ValueError("File is too short to contain event count")
-        (count,) = struct.unpack("<I", data)
+    def _extract_metadata(self, header: Dict[str, Any]) -> Dict[str, Any]:
+        players: List[Dict[str, Any]] = []
+        de = header.get("de", {})
+        for player in de.get("players", []):
+            players.append(
+                {
+                    "name": self._decode_de_string(player.get("name")),
+                    "civ_id": player.get("civ_id"),
+                    "color_id": player.get("color_id"),
+                }
+            )
 
-        # Sanity-check the count. We require at least 6 bytes per event
-        # (timestamp + two length bytes). If the declared number of events
-        # cannot possibly fit in the remaining file, treat the replay as an
-        # unsupported format.
-        try:
-            current = fh.tell()
-            fh.seek(0, 2)
-            end = fh.tell()
-            fh.seek(current)
-            remaining = end - current
-            if count * 6 > remaining:
-                raise UnsupportedReplayFormat(
-                    "Unrealistic event count in header; unsupported replay format"
-                )
-        except OSError:
-            # If we cannot seek, skip the validation and rely on decoding checks
-            pass
+        map_info = header.get("map_info", {})
 
-        events: List[dict[str, Any]] = []
-        for _ in range(count):
-            ts_bytes = fh.read(4)
-            if len(ts_bytes) < 4:
-                raise ValueError("Corrupted replay: missing timestamp")
-            (timestamp,) = struct.unpack("<I", ts_bytes)
+        return {
+            "game_version": header.get("version"),
+            "map": {
+                "size_x": map_info.get("size_x"),
+                "size_y": map_info.get("size_y"),
+            },
+            "players": players,
+        }
 
-            name_len_bytes = fh.read(1)
-            if len(name_len_bytes) < 1:
-                raise ValueError("Corrupted replay: missing player length")
-            name_len = name_len_bytes[0]
-            name_bytes = fh.read(name_len)
-            if len(name_bytes) < name_len:
-                raise ValueError("Corrupted replay: incomplete player name")
-            player = self._decode_text(name_bytes)
+    # ------------------------------------------------------------------
+    def _validate_checksums(self, header: Dict[str, Any]) -> None:
+        """Validate string block checksums in the header.
 
-            event_len_bytes = fh.read(1)
-            if len(event_len_bytes) < 1:
-                raise ValueError("Corrupted replay: missing event length")
-            event_len = event_len_bytes[0]
-            event_bytes = fh.read(event_len)
-            if len(event_bytes) < event_len:
-                raise ValueError("Corrupted replay: incomplete event name")
-            event = self._decode_text(event_bytes)
+        ``.aoe2record`` headers contain several blocks of strings preceded by
+        CRC32 values.  The :mod:`mgz` library exposes these blocks as arrays of
+        ``{"crc": int, "string": {"value": bytes}}`` structures.  We recompute
+        the CRC32 of each string and raise :class:`ValueError` if any do not
+        match their advertised checksum.
+        """
 
-            events.append({"timestamp": timestamp, "player": player, "event": event})
+        def _iter_blocks(de_section: Dict[str, Any]):
+            if not de_section:
+                return
+            if "rms_strings" in de_section:
+                yield de_section["rms_strings"]
+            for block in de_section.get("other_strings", []):
+                yield block
 
-        return events
+        for block in _iter_blocks(header.get("de", {})):
+            for entry in block.get("strings", []):
+                crc = entry.get("crc")
+                data = entry.get("string", {}).get("value", b"")
+                if crc in (None, 0):
+                    continue
+                if zlib.crc32(data) & 0xFFFFFFFF != crc:
+                    raise ValueError("Checksum mismatch in string block")
 
     # ------------------------------------------------------------------
     @staticmethod
-    def _decode_text(data: bytes) -> str:
-        """Decode bytes to text using UTF-8 with fallbacks.
-
-        The toy format primarily uses UTF-8. Some replays may contain arbitrary
-        byte sequences; in that case we fall back to Latin-1 or replace invalid
-        characters so that the parser never raises ``UnicodeDecodeError``.
-        """
-
-        try:
-            return data.decode("utf-8")
-        except UnicodeDecodeError:
+    def _decode_de_string(field: Any) -> str:
+        if not field:
+            return ""
+        data = field.get("value") if isinstance(field, dict) else field
+        if isinstance(data, bytes):
             try:
-                return data.decode("latin-1")
-            except UnicodeDecodeError:
-                return data.decode("utf-8", errors="replace")
+                return data.decode("utf-8")
+            except UnicodeDecodeError:  # pragma: no cover - fallback
+                return data.decode("latin-1", errors="replace")
+        return str(data)
+

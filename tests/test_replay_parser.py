@@ -1,83 +1,71 @@
 from __future__ import annotations
 
-import gzip
-import struct
 from pathlib import Path
 import sys
+import zlib
+
+import mgz
+from construct import ConstructError
+import pytest
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
-
-import pytest
 
 from src.utils.replay_parser import ReplayParser, UnsupportedReplayFormat
 
 
-def _write_mgz(file: Path, events: list[tuple[int, str, str]]) -> None:
-    with gzip.open(file, "wb") as f:
-        f.write(struct.pack("<I", len(events)))
-        for ts, player, event in events:
-            player_bytes = player.encode("utf-8")
-            event_bytes = event.encode("utf-8")
-            f.write(struct.pack("<I", ts))
-            f.write(bytes([len(player_bytes)]))
-            f.write(player_bytes)
-            f.write(bytes([len(event_bytes)]))
-            f.write(event_bytes)
+def _make_header(valid_checksum: bool = True) -> dict:
+    data = b"sample"
+    computed = zlib.crc32(data) & 0xFFFFFFFF
+    crc = computed if valid_checksum else computed ^ 0xFFFFFFFF
+    return {
+        "version": "DE",
+        "map_info": {"size_x": 120, "size_y": 100},
+        "de": {
+            "players": [
+                {"name": {"value": b"Alice"}, "civ_id": 1, "color_id": 1},
+                {"name": {"value": b"Bob"}, "civ_id": 2, "color_id": 2},
+            ],
+            "rms_strings": {"strings": [{"crc": crc, "string": {"value": data}}]},
+            "other_strings": [],
+        },
+    }
 
 
-def test_parse_valid_mgz(tmp_path: Path) -> None:
-    events = [(1000, "Alice", "move"), (2000, "Bob", "attack")]
-    path = tmp_path / "game.mgz"
-    _write_mgz(path, events)
+def test_parse_metadata(monkeypatch, tmp_path: Path) -> None:
+    path = tmp_path / "game.aoe2record"
+    path.write_bytes(b"fake")
+    header = _make_header()
+    monkeypatch.setattr(type(mgz.header), "parse_stream", lambda self, fh: header)
 
     parser = ReplayParser()
-    result = parser.parse(path)
-    assert result == [
-        {"timestamp": 1000, "player": "Alice", "event": "move"},
-        {"timestamp": 2000, "player": "Bob", "event": "attack"},
-    ]
+    meta = parser.parse(path)
+
+    assert meta["game_version"] == "DE"
+    assert meta["map"] == {"size_x": 120, "size_y": 100}
+    assert [p["name"] for p in meta["players"]] == ["Alice", "Bob"]
 
 
-def test_corrupted_file(tmp_path: Path) -> None:
+def test_checksum_mismatch(monkeypatch, tmp_path: Path) -> None:
     path = tmp_path / "bad.aoe2record"
-    # Write event count and a partial event with truncated player name
-    with path.open("wb") as f:
-        f.write(struct.pack("<I", 1))
-        f.write(struct.pack("<I", 1234))
-        f.write(bytes([3]))  # declared player name length
-        f.write(b"AB")  # only two bytes provided
+    path.write_bytes(b"fake")
+    header = _make_header(valid_checksum=False)
+    monkeypatch.setattr(type(mgz.header), "parse_stream", lambda self, fh: header)
 
     parser = ReplayParser()
     with pytest.raises(ValueError):
         parser.parse(path)
 
 
-def test_unsupported_header(tmp_path: Path) -> None:
-    path = tmp_path / "unsupported.aoe2record"
-    # Write event count but not enough bytes for even a minimal event
-    with path.open("wb") as f:
-        f.write(struct.pack("<I", 1))
-        f.write(struct.pack("<I", 1234))
+def test_unsupported_replay(monkeypatch, tmp_path: Path) -> None:
+    path = tmp_path / "bad.aoe2record"
+    path.write_bytes(b"fake")
+
+    def _raise(_fh):
+        raise ConstructError("bad")
+
+    monkeypatch.setattr(type(mgz.header), "parse_stream", lambda self, fh: _raise(fh))
 
     parser = ReplayParser()
     with pytest.raises(UnsupportedReplayFormat):
         parser.parse(path)
 
-
-def test_non_utf8_bytes(tmp_path: Path) -> None:
-    path = tmp_path / "enc.mgz"
-    with gzip.open(path, "wb") as f:
-        f.write(struct.pack("<I", 1))
-        f.write(struct.pack("<I", 1000))
-        player_bytes = b"Alice\xff"
-        event_bytes = b"move\xff"
-        f.write(bytes([len(player_bytes)]))
-        f.write(player_bytes)
-        f.write(bytes([len(event_bytes)]))
-        f.write(event_bytes)
-
-    parser = ReplayParser()
-    result = parser.parse(path)
-    assert result == [
-        {"timestamp": 1000, "player": "Aliceÿ", "event": "moveÿ"}
-    ]
