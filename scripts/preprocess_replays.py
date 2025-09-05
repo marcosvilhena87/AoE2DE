@@ -7,22 +7,12 @@ import json
 import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Iterable
+
+from src.utils.replay_parser import ReplayParser
 
 
 logger = logging.getLogger(__name__)
-
-
-class ReplayParser:
-    """Simple placeholder parser for AoE2DE replays.
-
-    The real implementation should parse the binary replay format and return a
-    sequence of events. This stub merely records the replay file size.
-    """
-
-    def parse(self, file_path: Path) -> list[dict[str, Any]]:
-        size = file_path.stat().st_size
-        return [{"event": "file_size", "bytes": size}]
 
 
 def _iter_replay_files(directory: Path) -> Iterable[Path]:
