@@ -8,7 +8,9 @@ available given a simplified game state.
 """
 
 from enum import Enum, auto
-from typing import Dict, List, Set
+from typing import List, Set
+
+from .state import GameState
 
 
 class MacroAction(Enum):
@@ -19,18 +21,13 @@ class MacroAction(Enum):
     BUILD_ARCHERY_RANGE = auto()
 
 
-def available_actions(state: Dict) -> List[MacroAction]:
-    """Return a list of available macro actions for a given state.
+def available_actions(state: GameState) -> List[MacroAction]:
+    """Return a list of available macro actions for a given state."""
 
-    The ``state`` dictionary is expected to contain at least the keys
-    ``food`` (int), ``wood`` (int), ``age`` (str) and ``buildings``
-    (iterable of str).
-    """
-
-    food: int = state.get("food", 0)
-    wood: int = state.get("wood", 0)
-    age: str = state.get("age", "")
-    buildings: Set[str] = set(state.get("buildings", []))
+    food: int = state.food
+    wood: int = state.wood
+    age: str = state.age
+    buildings: Set[str] = set(state.buildings)
 
     actions: List[MacroAction] = []
 
