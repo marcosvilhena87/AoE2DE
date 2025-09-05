@@ -15,3 +15,27 @@ python scripts/preprocess_replays.py --input <replay_dir> --output <json_dir>
 ```
 
 Optionally set `--workers` to control parallelism.
+
+## Train Agent
+
+`train_agent.py` fits the imitation model using preprocessed episodes. It
+expects a configuration file containing dataset paths and model
+hyperparameters.
+
+### Usage
+
+```bash
+python scripts/train_agent.py --config <cfg.json> --output-dir <out_dir> \
+    --epochs 10 --seed 42
+```
+
+Key arguments:
+
+- `--seed` – sets seeds for `random`, `numpy` and `torch` for reproducible
+  training.
+- `--use-gpu` – enable CUDA if available.
+
+The configuration file must specify `data_dir`, `state_dim` and `num_actions`.
+Optional fields configure batch size, model dimensions and early stopping
+(`val_split` and `patience`). The best model is saved as `best_model.pt` in the
+output directory.
