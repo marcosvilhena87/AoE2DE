@@ -71,15 +71,15 @@ pip install -r requirements-dev.txt
 1. Colete replays e salve em `data/`.  
 2. Pré-processe dados:
 ```bash
-python scripts/preprocess_replays.py --input data/replays --output data/episodes
+python main.py preprocess --input data/replays --output data/episodes
 ```
 3. Treine o agente:
 ```bash
-python scripts/train_agent.py --config configs/bc.yaml
+python main.py train --config configs/bc.yaml --output-dir models/
 ```
 4. Execute em campanha:
 ```bash
-python scripts/run_agent.py --mission "William Wallace 4"
+python main.py run --mission "William Wallace 4"
 ```
 
 ---
