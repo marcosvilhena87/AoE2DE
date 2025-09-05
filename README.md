@@ -54,10 +54,15 @@ Pré-requisitos:
 - Tesseract OCR  
 - AutoHotkey (Windows) ou alternativa para emissão de hotkeys  
 
-Instalação:
+Instalação (reprodutível):
 ```bash
 cd AoE2DE
 pip install -r requirements.txt
+```
+
+Dependências de desenvolvimento/testes:
+```bash
+pip install -r requirements-dev.txt
 ```
 
 ---
