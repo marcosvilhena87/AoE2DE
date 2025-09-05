@@ -80,3 +80,14 @@ def test_open_detects_gzip_magic(tmp_path: Path) -> None:
     with parser._open(path) as fh:
         assert fh.read() == b"data"
 
+
+def test_checksum_entry_with_null_string(monkeypatch, tmp_path: Path) -> None:
+    path = tmp_path / "null.aoe2record"
+    path.write_bytes(b"fake")
+    header = _make_header()
+    header["de"]["rms_strings"]["strings"].append({"crc": None, "string": None})
+    monkeypatch.setattr(type(mgz.header), "parse_stream", lambda self, fh: header)
+
+    parser = ReplayParser()
+    parser.parse(path)
+
