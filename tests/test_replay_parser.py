@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 import sys
 import zlib
+import gzip
 
 import mgz
 from construct import ConstructError
@@ -68,4 +69,14 @@ def test_unsupported_replay(monkeypatch, tmp_path: Path) -> None:
     parser = ReplayParser()
     with pytest.raises(UnsupportedReplayFormat):
         parser.parse(path)
+
+
+def test_open_detects_gzip_magic(tmp_path: Path) -> None:
+    path = tmp_path / "game.aoe2record"
+    with gzip.open(path, "wb") as fh:
+        fh.write(b"data")
+
+    parser = ReplayParser()
+    with parser._open(path) as fh:
+        assert fh.read() == b"data"
 
