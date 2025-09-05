@@ -44,6 +44,10 @@ def load_transitions(data_dir: Path) -> types.Transitions:
         data = np.load(file)
         obs = data["obs"]
         acts = data["acts"]
+        if len(obs) != len(acts):
+            raise ValueError(
+                f"In {file}, obs and acts have mismatched lengths: {len(obs)} != {len(acts)}"
+            )
         next_obs = data.get("next_obs")
         if next_obs is None:
             # Placeholder next observations; not required for BC but part of API
