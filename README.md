@@ -56,7 +56,7 @@ Pré-requisitos:
 
 Instalação:
 ```bash
-cd aoe2-agent-substituto
+cd AoE2DE
 pip install -r requirements.txt
 ```
 
