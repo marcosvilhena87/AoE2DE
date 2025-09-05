@@ -83,6 +83,8 @@ A ideia central é **observar a performance humana** em *replays* para:
 
 ## 📦 Instalação
 
+Clone o repositório e instale as dependências listadas em `requirements.txt`:
+
 ```bash
 git clone https://github.com/SEU_USUARIO/aoe2-human-rl.git
 cd aoe2-human-rl
