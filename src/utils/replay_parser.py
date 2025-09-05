@@ -15,6 +15,7 @@ ensure file integrity.
 from __future__ import annotations
 
 import gzip
+import logging
 import zlib
 from pathlib import Path
 from typing import Any, BinaryIO, Dict, List
@@ -44,7 +45,9 @@ class ReplayParser:
             try:
                 header = mgz.header.parse_stream(fh)
             except ConstructError as exc:  # pragma: no cover - defensive
-                raise UnsupportedReplayFormat("File is not a valid aoe2record") from exc
+                raise UnsupportedReplayFormat(
+                    "File is not a valid aoe2record"
+                ) from exc
 
         self._validate_checksums(header)
         return self._extract_metadata(header)
@@ -98,14 +101,22 @@ class ReplayParser:
             for block in de_section.get("other_strings", []):
                 yield block
 
+        skipped = 0
+
         for block in _iter_blocks(header.get("de", {})):
             for entry in block.get("strings", []):
+                if not isinstance(entry, dict):
+                    skipped += 1
+                    continue
                 crc = entry.get("crc")
                 data = entry.get("string", {}).get("value", b"")
                 if crc in (None, 0):
                     continue
                 if zlib.crc32(data) & 0xFFFFFFFF != crc:
                     raise ValueError("Checksum mismatch in string block")
+
+        if skipped:
+            logging.debug("Skipped %d non-dict checksum entries", skipped)
 
     # ------------------------------------------------------------------
     @staticmethod
@@ -119,4 +130,3 @@ class ReplayParser:
             except UnicodeDecodeError:  # pragma: no cover - fallback
                 return data.decode("latin-1", errors="replace")
         return str(data)
-
