@@ -79,6 +79,15 @@ python scripts/run_agent.py --mission "William Wallace 4"
 
 ---
 
+## 🧪 Testes
+Para executar os testes automatizados, instale as dependências e rode:
+
+```bash
+pytest -q
+```
+
+---
+
 ## 📊 Avaliação
 - **Métricas:**  
   - % de missões concluídas.  
