@@ -38,7 +38,9 @@ class ReplayParser:
         Parameters
         ----------
         file_path:
-            Path to a ``.aoe2record`` or ``.mgz`` replay file.
+            Path to a replay file.  Gzip-compressed files are detected by
+            inspecting the file's magic number rather than relying on the
+            extension.
         """
 
         with self._open(file_path) as fh:
@@ -54,9 +56,20 @@ class ReplayParser:
 
     # ------------------------------------------------------------------
     def _open(self, path: Path) -> BinaryIO:
-        if path.suffix.lower() == ".mgz":
+        """Open ``path`` returning a binary file handle.
+
+        The first few bytes of the file are inspected to detect gzip
+        compression.  If the gzip magic number is present the file is opened
+        with :func:`gzip.open`; otherwise the built-in :func:`open` is used.
+        """
+
+        raw = open(path, "rb")
+        magic = raw.read(2)
+        raw.seek(0)
+        if magic == b"\x1f\x8b":
+            raw.close()
             return gzip.open(path, "rb")
-        return open(path, "rb")
+        return raw
 
     # ------------------------------------------------------------------
     def _extract_metadata(self, header: Dict[str, Any]) -> Dict[str, Any]:
